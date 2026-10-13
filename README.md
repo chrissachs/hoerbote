@@ -4,8 +4,14 @@ Listen to a newspaper instead of reading it. Hörbote (`hoerbote` in
 code) turns an issue into a spoken overview, page by page. While you
 listen, the page is on screen with the current article highlighted.
 
-The demo plays the *Berliner Tageblatt* from exactly 100 years ago,
-which is in the public domain.
+**Demo: https://hoerbote.chris-sachs.info/** (German). It plays two
+issues of the *Berliner Tageblatt* from October 1926, which are in the
+public domain.
+
+<p>
+  <img src="docs/reader.webp" alt="The page view: a Berliner Tageblatt front page, the narrated article outlined in red, its summary and the player below" width="72%">
+  <img src="docs/mobile.webp" alt="The same page on a phone" width="22%">
+</p>
 
 ## How it works
 
