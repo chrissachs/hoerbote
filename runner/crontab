@@ -1,0 +1,11 @@
+# supercronic crontab, UTC (the container has no other time zone).
+# Nothing runs on its own, to keep costs at zero while nobody uses the
+# app: only what someone asked for in the web app. supercronic doesn't
+# start a line while its previous run is still going, so nothing is
+# started twice. For a daily import instead (05:00 UTC is 06:00/07:00 in
+# Germany, well within the issue's "100 years ago" date):
+#   0 5 * * * python /runner/run.py daily berliner-tageblatt
+# Issues to import (fetch and every job up to publish, ~10 min each).
+* * * * * python /runner/run.py import-requests
+# Audio to render (~3 min).
+* * * * * python /runner/run.py audio-requests

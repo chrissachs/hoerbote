@@ -1,0 +1,21 @@
+# Which papers can be fetched: one table per paper, keyed by its slug
+# (part of the run_id). Read by the fetch job and the backend (the import
+# form), see shared/papers.py for every field. Adding a paper from an
+# existing provider is a new table here, no code.
+#
+# Papers you'd rather not commit (e.g. a subscription e-paper) go into
+# papers_local.toml next to this file (gitignored, see
+# papers_local.example.toml); its papers are added to these.
+
+[berliner-tageblatt]
+title = "Berliner Tageblatt und Handels-Zeitung"
+provider = "ddb"
+years_back = 100
+narration_context = "from_article"
+# Matched against the DDB title, e.g. "Berliner Tageblatt und
+# Handels-Zeitung, Morgen-Ausgabe". The morning edition has more pages
+# (~20 vs ~10).
+editions = { morning = "Morgen-Ausgabe", evening = "Abend-Ausgabe" }
+# Digitised by the Staatsbibliothek zu Berlin, Public Domain Mark on every
+# issue checked (1919-1928).
+params = { zdb_id = "2764651-8" }

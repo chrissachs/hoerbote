@@ -1,0 +1,12 @@
+# Copy to papers_local.toml (gitignored) for papers that shouldn't be in
+# the repo; they're added to papers.toml's.
+
+[example-daily]
+title = "Example Daily"
+provider = "url"
+years_back = 0
+editions = { daily = "" }
+params = { pdf_url = "https://example.org/epaper/{date:%Y%m%d}.pdf" }
+# Optional per-paper narration, e.g. regional color:
+# tone_prompt = "An occasional regional word is welcome, used sparingly."
+# speech_style = "Hochdeutsch mit einem ganz leichten regionalen Einschlag."

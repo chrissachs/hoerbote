@@ -1,0 +1,49 @@
+# Layout job on an NVIDIA GPU: like ./Dockerfile, but the model is served
+# by vLLM instead of llama.cpp (whose default reads pages at ~4.2 MP instead
+# of the ~6.29 MP Surya sends). Built by gpu_job.py, not by hand, and
+# incomplete on its own: gpu_job.py adds the source on top and starts/stops
+# the server around run.py. Build context is the repo root.
+#
+# Based on the vLLM image Surya itself pins for its vLLM backend. Two
+# Pythons: the image's own 3.12 runs vLLM and the GPU runner; the job keeps
+# its own 3.14 venv (uv-managed), called by path, as vLLM has no 3.14 build.
+FROM vllm/vllm-openai:v0.20.1
+
+# The base image's ENTRYPOINT starts vLLM; the GPU runner needs a plain
+# image it can run its own command in, and `python` on PATH.
+ENTRYPOINT []
+RUN command -v python >/dev/null || ln -s "$(command -v python3)" /usr/local/bin/python
+
+# Same pillow-from-source build deps as ./Dockerfile (surya-ocr pins
+# pillow<11, no prebuilt 3.14 wheel). curl/ca-certificates for uv.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential zlib1g-dev libjpeg-dev ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# uv fetches its own Python 3.14 for the stage's venv, kept out of
+# /usr/local, which holds the vLLM image's Python.
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python UV_LINK_MODE=copy
+
+# Only the slow, rarely changing part: third-party dependencies (from the
+# manifests alone) and weights. The source and the two local packages (this
+# project and shared) are added by gpu_job.py as separate image steps, since
+# the GPU runner caches this whole Dockerfile as one step: any source file
+# in it would redo the dependency install and weight download on every edit.
+WORKDIR /repo
+COPY jobs/1_layout/pyproject.toml jobs/1_layout/uv.lock jobs/1_layout/
+COPY shared/pyproject.toml shared/pyproject.toml
+
+WORKDIR /repo/jobs/1_layout
+RUN uv sync --frozen --no-dev --python 3.14 --managed-python \
+    --no-install-project --no-install-package hoerbote-shared
+
+# Fixed facts of this image. Settings we tune (server args, batch size,
+# limits) live in gpu_job.py instead: any edit to this file rebuilds all of
+# it, weights download included.
+ENV DATA_ROOT="/data" HF_HOME="/opt/hf-cache"
+
+# Bake the model weights (the original bf16 checkpoint vLLM loads) into the
+# image so a cold start doesn't download them.
+RUN python3 -c "from huggingface_hub import snapshot_download; print(snapshot_download('datalab-to/surya-ocr-2'))"

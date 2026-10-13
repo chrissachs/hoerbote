@@ -1,0 +1,21 @@
+# Generated pipeline output -- includes rendered page images and full
+# article text extracted from copyrighted newspaper issues.
+extracted/
+
+# Pipeline runs (data/issues/<run_id>/): full text and page images of
+# whatever issues were fetched, copyrighted ones included.
+data/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Provider API keys (see .env.example) -- never committed.
+.env
+
+# Papers kept out of the repo (see config/papers_local.example.toml).
+config/papers_local.toml
+
+# Private working notes -- a separate local git repo, not published.
+notes/

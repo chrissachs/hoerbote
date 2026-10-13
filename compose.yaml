@@ -1,0 +1,62 @@
+# What keeps running: the backend (site + API) and the runner, a cron
+# that starts the jobs, each as its own container, when someone logged in
+# asks for an issue or its audio in the web app. The jobs are services
+# here only to be built (profile "jobs"). Run from the repo root:
+#   docker compose --profile jobs build   # all images, the jobs' too
+#   docker compose up -d
+# Restart one run by hand:
+#   docker compose run --rm runner python run.py restart <run_id>
+# The backend reads backend/.env (copy backend/.env.example), the jobs
+# their own (the runner hands them over). Plain env_file strings, no
+# `required:` (Compose >= 2.24), so older Compose reads this too.
+
+services:
+  backend:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    image: hoerbote-backend
+    env_file: backend/.env
+    volumes: ["./data:/data"]
+    # The data dir's owner (export HOST_UID/HOST_GID, or files end up 1000's).
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    ports: ["8001:8001"]
+    restart: unless-stopped
+
+  runner:
+    build: { context: ., dockerfile: runner/Dockerfile }
+    image: hoerbote-runner
+    # Optional, from the shell or a .env next to this file: the data
+    # dir's host path, if the runner can't find it on its own.
+    environment: [HOST_DATA_DIR]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/data
+      # For the jobs' .env files.
+      - .:/repo:ro
+    restart: unless-stopped
+
+  # The jobs: only built here, started by the runner. The profile keeps
+  # `up` from starting them (they'd exit at once, without a run_id).
+  fetch:
+    build: { context: ., dockerfile: jobs/0_fetch/Dockerfile }
+    image: hoerbote-fetch
+    profiles: [jobs]
+  layout-modal:
+    build: { context: ., dockerfile: jobs/1_layout/Dockerfile.modal }
+    image: hoerbote-layout-modal
+    profiles: [jobs]
+  articles:
+    build: { context: ., dockerfile: jobs/2_articles/Dockerfile }
+    image: hoerbote-articles
+    profiles: [jobs]
+  narration:
+    build: { context: ., dockerfile: jobs/3_narration/Dockerfile }
+    image: hoerbote-narration
+    profiles: [jobs]
+  publish:
+    build: { context: ., dockerfile: jobs/4_publish/Dockerfile }
+    image: hoerbote-publish
+    profiles: [jobs]
+  audio:
+    build: { context: ., dockerfile: jobs/5_audio/Dockerfile }
+    image: hoerbote-audio
+    profiles: [jobs]

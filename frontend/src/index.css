@@ -1,0 +1,334 @@
+/* Self-hosted (no requests to font CDNs), Latin subsets only. */
+@import '@fontsource/unifrakturmaguntia/latin-400.css';
+@import '@fontsource/rubik-dirt/latin-400.css';
+@import '@fontsource/mukta/latin-300.css';
+@import '@fontsource/mukta/latin-400.css';
+@import '@fontsource/mukta/latin-600.css';
+@import '@fontsource/mukta/latin-700.css';
+
+/* Newsprint, light only: the blackletter wordmark appears only in the
+   mastheads, Rubik Dirt only in the landing page's opener, Mukta everywhere
+   else. */
+:root {
+  --paper: #f5efe2;
+  --sheet: #fbf8f1;
+  --ink: #1d1a16;
+  --muted: #6e665a;
+  --rule: #cdbfa6;
+  --print: #e4dccc;
+  --accent: #b3261e;
+  --accent-ink: #fff;
+  --shade: rgba(29, 26, 22, 0.32);
+  --wordmark: 'UnifrakturMaguntia', Georgia, serif;
+  /* The font has one weight; an outline in the letter color thickens it. */
+  --wordmark-stroke: 0.032em;
+  --hero: 'Rubik Dirt', 'Mukta', sans-serif;
+  --body: 'Mukta', system-ui, sans-serif;
+  font-family: var(--body);
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--paper);
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); }
+::selection { background: var(--accent); color: var(--accent-ink); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { display: flex; flex-direction: column; height: 100dvh; }
+
+select, input, button { font: inherit; color: inherit; }
+input {
+  background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 10px;
+}
+.icon-button, .pages-button {
+  display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none;
+  border: none; background: none; border-radius: 6px; padding: 6px; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.icon-button:hover, .pages-button:hover { background: var(--print); }
+
+.wordmark {
+  font-family: var(--wordmark); font-weight: 400; -webkit-text-stroke: var(--wordmark-stroke) currentColor;
+  color: inherit; text-decoration: none; white-space: nowrap; line-height: 1;
+}
+
+/* Full masthead: landing page and login. */
+.masthead { text-align: center; padding: 16px 16px 0; width: min(100%, 1040px); margin: 0 auto; }
+.masthead .dateline {
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  font-size: 0.8rem; color: var(--muted); letter-spacing: 0.04em;
+  border-bottom: 3px double var(--ink); padding-bottom: 6px;
+}
+.masthead .wordmark { display: block; font-size: clamp(2.2rem, 8vw, 5.2rem); margin: 14px 0 12px; white-space: normal; text-wrap: balance; }
+.masthead .tagline {
+  border-top: 1px solid var(--ink); padding-top: 6px; font-size: 0.8rem; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted);
+}
+
+/* Slim masthead bar: the reader. */
+header.bar {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px;
+  padding: 6px 12px; border-bottom: 3px double var(--ink); background: var(--paper);
+}
+.bar .wordmark { font-size: 1.7rem; }
+.bar .wordmark .short { display: none; }
+.bar-side { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.bar-side.right { justify-content: flex-end; }
+.title { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; font-size: 0.85rem; }
+.title span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title .paper { font-weight: 600; }
+.page-count { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+main { flex: 1; min-height: 0; overflow: hidden; display: flex; justify-content: center; }
+main.scroll { overflow: auto; display: block; }
+
+/* The zoomable page fills the area between header and footer. */
+.page-view { position: relative; flex: 1; min-width: 0; padding: 8px; }
+.page-view.placeholder { flex: none; height: calc(100% - 16px); margin: 8px; background: var(--sheet); }
+.page {
+  /* PageView keeps --zoom at the current scale. */
+  --zoom: 1;
+  position: relative; overflow: hidden; background: #fff no-repeat center / 100% 100%;
+  box-shadow: 0 2px 14px rgba(29, 26, 22, 0.18); cursor: pointer;
+}
+.page img { display: block; width: 100%; height: 100%; user-select: none; }
+.box {
+  position: absolute; pointer-events: none; border-radius: calc(3px / var(--zoom));
+  outline: calc(1px / var(--zoom)) dashed transparent; transition: outline-color 0.2s;
+}
+.page:hover .box { outline-color: var(--rule); }
+/* One highlight that glides from article to article; its shadow dims the
+   rest of the page (clipped by .page's overflow). */
+.spot {
+  position: absolute; pointer-events: none; border-radius: calc(3px / var(--zoom));
+  outline: calc(2px / var(--zoom)) solid var(--accent); outline-offset: calc(2px / var(--zoom));
+  box-shadow: 0 0 0 200vmax var(--shade);
+  transition: left 0.6s, top 0.6s, width 0.6s, height 0.6s, opacity 0.3s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+.spot.hidden { opacity: 0; }
+.zoom-controls {
+  position: absolute; right: 16px; bottom: 16px; display: flex; flex-direction: column;
+  background: var(--sheet); border: 1px solid var(--rule); border-radius: 999px; padding: 4px;
+  box-shadow: 0 2px 10px rgba(29, 26, 22, 0.15);
+}
+.zoom-controls button {
+  width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer;
+  background: none; color: inherit; display: grid; place-items: center;
+}
+.zoom-controls button:hover { background: var(--print); }
+.zoom-controls button.on { background: var(--ink); color: var(--paper); }
+
+/* Now playing. */
+footer {
+  position: relative; border-top: 1px solid var(--rule); background: var(--sheet);
+  padding: 10px 16px calc(8px + env(safe-area-inset-bottom));
+}
+.progress { position: absolute; left: 0; right: 0; top: -1px; height: 3px; }
+.progress span { display: block; height: 100%; background: var(--accent); }
+.caption { max-width: 680px; margin: 0 auto; min-height: 1.5em; }
+.caption p { margin: 0; }
+.kicker {
+  font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.headline { font-weight: 700; font-size: 1.1rem; line-height: 1.25; text-wrap: balance; margin: 2px 0 4px; }
+.caption .text {
+  color: var(--muted); font-size: 0.95rem;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.muted { color: var(--muted); }
+.error { color: var(--accent); }
+.audio-notice { font-size: 0.95rem; }
+.audio-notice button {
+  font: inherit; font-weight: 600; padding: 2px 10px; margin-right: 4px; border-radius: 4px; border: none;
+  background: var(--accent); color: var(--accent-ink); cursor: pointer;
+}
+.empty { text-align: center; color: var(--muted); }
+
+.controls { display: flex; justify-content: center; align-items: center; gap: 10px; padding-top: 8px; }
+.controls button {
+  width: 44px; height: 44px; border-radius: 50%; border: none; background: none; cursor: pointer;
+  display: grid; place-items: center; color: var(--ink);
+}
+.controls button:hover:not(:disabled) { background: var(--paper); }
+.controls button:disabled { opacity: 0.3; cursor: default; }
+.controls .page-step { width: 36px; height: 36px; color: var(--muted); }
+.controls .play { position: relative; width: 56px; height: 56px; background: var(--accent); color: var(--accent-ink); }
+.controls .play:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+/* Waiting for audio: an arc turns around the play button. */
+.loading-ring { position: absolute; inset: -5px; width: 66px; height: 66px; color: var(--accent); pointer-events: none; }
+.loading-ring circle { transform-box: fill-box; transform-origin: center; animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Landing page: the big headline, and next to it (below on phones) a
+   narrow, justified article column with a rule in between. */
+.hero {
+  min-height: calc(100dvh - 190px); width: min(100%, 1040px); margin: 0 auto; padding: 48px 16px;
+  display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: center; gap: 32px 48px;
+}
+.hero-head { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.hero h2 {
+  font-family: var(--hero); font-weight: 400; margin: 0; line-height: 0.95;
+  font-size: clamp(3.6rem, 10vw, 8.5rem); text-wrap: balance;
+}
+.hero h2 em { font-style: normal; color: var(--accent); }
+.cue {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+  font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+  border: none; background: none; padding: 0; cursor: pointer;
+}
+.cue svg { animation: bob 1.8s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(4px); } }
+
+.notice {
+  min-width: 0; border-left: 1px solid var(--ink); padding-left: 28px;
+  font-size: 0.95rem; line-height: 1.45; text-align: justify; hyphens: auto;
+}
+.notice .kicker { border-bottom: 1px solid var(--rule); padding-bottom: 4px; margin: 0 0 8px; }
+.notice h3 { font-size: 1.5rem; line-height: 1.15; margin: 0 0 10px; text-align: left; text-wrap: balance; hyphens: manual; }
+.notice .standfirst { font-weight: 600; margin: 0 0 10px; }
+.notice ol { list-style: none; margin: 0; padding: 0; }
+.notice li { margin-bottom: 8px; }
+.notice .editors-note {
+  margin: 12px 0 0; padding-top: 8px; border-top: 1px solid var(--rule);
+  font-size: 0.82rem; font-style: italic; color: var(--muted);
+}
+@media (max-width: 760px) {
+  .hero { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .hero h2 { font-size: clamp(3.6rem, 18vw, 8.5rem); }
+  .notice { border-left: none; padding-left: 0; border-top: 3px double var(--ink); padding-top: 12px; }
+}
+
+.landing { width: min(100%, 1040px); margin: 0 auto; padding: 0 16px 64px; }
+.small { font-size: 0.85rem; }
+.paper h2 { font-size: 1.4rem; line-height: 1.2; margin: 40px 0 0; }
+.paper:first-child h2 { margin-top: 8px; }
+.paper .sub {
+  color: var(--muted); font-size: 0.85rem; border-bottom: 1px solid var(--rule);
+  padding-bottom: 8px; margin: 0 0 20px;
+}
+.issue-cards {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 28px 20px;
+}
+.issue-cards a { display: flex; flex-direction: column; gap: 2px; color: inherit; text-decoration: none; }
+/* Two sheets peeking out from under the front page. */
+.stack { position: relative; margin: 0 6px 12px 0; }
+.stack::before, .stack::after {
+  content: ''; position: absolute; inset: 0; background: var(--sheet); border: 1px solid var(--rule);
+}
+.stack::before { transform: translate(6px, 6px); }
+.stack::after { transform: translate(3px, 3px); }
+.issue-cards img {
+  position: relative; z-index: 1; display: block; width: 100%; max-width: 100%; aspect-ratio: 0.7;
+  object-fit: cover; object-position: top; background: var(--sheet); border: 1px solid var(--rule);
+  transition: transform 0.2s ease;
+}
+.issue-cards a:hover img { transform: translate(-2px, -3px); }
+.issue-cards .date { font-weight: 600; }
+
+/* Logged in: below the issue list, set like the paper sections. */
+.imports { width: min(100%, 1040px); margin: 0 auto; padding: 0 16px 32px; }
+.imports h2 { font-size: 1.4rem; line-height: 1.2; margin: 0; }
+.imports .sub {
+  color: var(--muted); font-size: 0.85rem; border-bottom: 1px solid var(--rule);
+  padding-bottom: 8px; margin: 0 0 16px;
+}
+.imports form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.imports label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 0.9rem; }
+.imports select, .imports input { font-weight: 400; }
+.imports select {
+  background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 10px; max-width: 100%;
+}
+.imports button {
+  font-weight: 600; padding: 6px 14px; border-radius: 4px; border: none; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink);
+}
+.imports button.quiet { background: none; color: var(--muted); text-decoration: underline; padding: 6px 4px; }
+.imports ul { list-style: none; margin: 16px 0 0; padding: 0; }
+.imports li {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  padding: 8px 0; border-bottom: 1px solid var(--rule); font-size: 0.95rem;
+}
+.imports li .error { overflow-wrap: anywhere; }
+.imports .actions { display: flex; gap: 8px; margin-left: auto; }
+
+.reader-body { flex: 1; min-height: 0; display: flex; }
+.reader-body main { flex: 1; min-width: 0; }
+
+/* Pages one under the other: the sidebar on wider screens, a full-screen
+   list behind the header's pages button on phones. */
+.sidebar {
+  display: none; width: 190px; flex: none; overflow-y: auto;
+  border-right: 1px solid var(--rule); background: var(--sheet);
+}
+.page-list { display: flex; flex-direction: column; gap: 14px; padding: 14px; }
+.page-list button {
+  border: 2px solid transparent; border-radius: 4px; background: none; padding: 4px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px; align-items: center; font-size: 0.85em; color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.page-list button.current { border-color: var(--accent); }
+.page-list img { width: 100%; background: #fff; box-shadow: 0 1px 4px rgba(29, 26, 22, 0.2); }
+.pages-overlay {
+  position: fixed; inset: 0; z-index: 10; background: var(--sheet); overflow-y: auto;
+}
+.pages-overlay-header {
+  position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 16px; background: var(--sheet); border-bottom: 3px double var(--ink); font-weight: 600;
+}
+.pages-overlay .page-list { width: min(100%, 320px); margin: 0 auto; }
+.attribution { margin: 4px 0 0; font-size: 0.8em; color: var(--muted); }
+
+.page-count { display: none; }
+@media (min-width: 768px) {
+  .sidebar { display: block; }
+  .page-count { display: inline; }
+  .pages-button, .pages-overlay { display: none; }
+}
+@media (max-width: 600px) {
+  header.bar { grid-template-columns: auto 1fr auto; }
+  .bar .title { display: none; }
+  .bar .wordmark { font-size: 1.5rem; text-align: center; }
+  .bar .wordmark .long { display: none; }
+  .bar .wordmark .short { display: inline; }
+}
+
+.login { min-height: 100dvh; display: flex; flex-direction: column; }
+.login form {
+  width: min(100%, 340px); margin: 12vh auto 0; padding: 0 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.login label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.login button {
+  padding: 8px; border-radius: 4px; border: none; background: var(--accent); color: var(--accent-ink);
+  font-weight: 600; cursor: pointer;
+}
+.login button:disabled { opacity: 0.5; cursor: default; }
+.login p { margin: 0; }
+.login .back-link { font-size: 0.85rem; color: var(--muted); }
+
+.site-links { text-align: center; padding: 24px 16px 32px; font-size: 0.85rem; }
+.site-links { display: flex; justify-content: center; gap: 16px; }
+.site-links a, .site-links button { color: var(--muted); }
+.site-links button { font: inherit; padding: 0; border: none; background: none; text-decoration: underline; cursor: pointer; }
+.login .site-links { margin-top: auto; }
+
+.imprint { width: min(100%, 680px); margin: 0 auto; padding: 32px 16px 16px; }
+.imprint .back-link { display: inline-block; margin-bottom: 24px; font-size: 0.85rem; color: var(--muted); }
+.imprint .kicker { border-bottom: 1px solid var(--rule); padding-bottom: 4px; margin: 0 0 8px; max-width: none; }
+.imprint h2 { font-size: 1.6rem; line-height: 1.15; margin: 0 0 12px; }
+.imprint h3 {
+  font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 28px 0 6px;
+}
+.imprint p { margin: 0 0 10px; max-width: 65ch; }
+.imprint address { font-style: normal; display: flex; flex-direction: column; }
+.imprint a { color: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  .spot, .issue-cards img { transition: none; }
+  .cue svg, .loading-ring circle { animation: none; }
+}

@@ -1,0 +1,14 @@
+# One config for every Python project in the repo (ruff finds it from
+# any subfolder). Run via scripts/check.sh.
+line-length = 120
+target-version = "py314"
+# Each project's modules are imported by bare name (`from models import
+# ...`); listing the project folders makes isort treat them as first-party.
+src = ["shared", "jobs/*", "backend", "runner"]
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[lint.per-file-ignores]
+# Inline XML/JSON fixtures read better unwrapped.
+"**/tests/**" = ["E501"]

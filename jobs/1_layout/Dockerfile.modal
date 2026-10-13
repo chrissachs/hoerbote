@@ -1,0 +1,20 @@
+# Layout job on Modal's GPU, started from a container (the pipeline
+# runner's docker run): just the modal client and this job's source;
+# gpu_job.py has Modal build the real GPU image from Dockerfile.gpu. Needs
+# MODAL_TOKEN_ID / MODAL_TOKEN_SECRET (see .env.example). Build from the
+# repo root:
+#   docker build -f jobs/1_layout/Dockerfile.modal -t hoerbote-layout-modal .
+
+FROM python:3.14-slim
+
+RUN pip install --no-cache-dir modal==1.6.1
+
+WORKDIR /repo
+COPY shared/ shared/
+COPY jobs/1_layout/ jobs/1_layout/
+
+# HOME: modal writes its config there; the runner starts this as the data
+# dir's owner, who has no home in the image.
+ENV DATA_ROOT="/data" HOME="/tmp" PYTHONUNBUFFERED="1"
+
+ENTRYPOINT ["modal", "run", "/repo/jobs/1_layout/gpu_job.py", "--run-id"]
