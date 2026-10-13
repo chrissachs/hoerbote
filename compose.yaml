@@ -18,7 +18,10 @@ services:
     volumes: ["./data:/data"]
     # The data dir's owner (export HOST_UID/HOST_GID, or files end up 1000's).
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
-    ports: ["8001:8001"]
+    # Only on localhost: on a server, a reverse proxy with HTTPS goes in
+    # front (the login cookie is Secure). BACKEND_PORT (from the shell or a
+    # .env next to this file) if 8001 is taken.
+    ports: ["127.0.0.1:${BACKEND_PORT:-8001}:8001"]
     restart: unless-stopped
 
   runner:

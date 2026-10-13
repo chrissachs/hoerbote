@@ -16,7 +16,9 @@ Or with Docker, which builds the web app itself:
 
     docker compose up -d backend
 
-Then open http://localhost:8001. Compose runs it as user 1000, so it
+Then open http://localhost:8001. Compose publishes it on localhost
+only, port `BACKEND_PORT` (default 8001, set it in the shell or in a
+`.env` in the repo root). Compose runs it as user 1000, so it
 can write into `data/`. If `data/` belongs to someone else, export
 `HOST_UID` and `HOST_GID` first.
 
