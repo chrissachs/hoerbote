@@ -2,6 +2,7 @@
 reads/writes the per-page narration files."""
 
 import json
+import logging
 from pathlib import Path
 
 from batch import run_batch
@@ -11,6 +12,8 @@ from narration import PageSummary
 from pipeline_run import run_dir
 from source_info import NarrationContext
 from stages import ArticleResult, ArticleStage, PageSynthesisInput, PageSynthesisStage
+
+log = logging.getLogger(__name__)
 
 # One page{N}.narration.json per page, not one file per issue, so a page
 # can be rewritten on its own.
@@ -57,7 +60,7 @@ class Pipeline:
         holds batch.py's resume files while a job is in flight."""
         cache = self.cache
         uncached = [(p.page, a) for p in pages for a in p.articles if cache.get(p.page, a) is None]
-        print(f"Article step: {len(uncached)} uncached article(s) of {sum(len(p.articles) for p in pages)}")
+        log.info("Article step: %d uncached article(s) of %d", len(uncached), sum(len(p.articles) for p in pages))
         outputs = run_batch(self.article, [a for _, a in uncached], job_dir / "batch_articles.json")
         for (page_num, article), summary in zip(uncached, outputs, strict=True):
             cache.set(page_num, article, summary)

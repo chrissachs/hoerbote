@@ -11,6 +11,7 @@ the server, then downloads 01_layout/ and the updated status.json. Like
 run.py itself, safe to re-invoke: it overwrites 01_layout/."""
 
 import json
+import logging
 import os
 import time
 from pathlib import Path
@@ -29,6 +30,8 @@ STAGE_DIR = "/repo/jobs/1_layout"
 OUTPUT_BUNDLE = "layout_outputs.tar"
 MODEL = "datalab-to/surya-ocr-2"
 SERVER_PORT = 8000
+
+log = logging.getLogger(__name__)
 
 # Settings we tune live here, not in Dockerfile.gpu, where any change would
 # rebuild everything incl. weights.
@@ -118,6 +121,7 @@ def detect(run_id: str) -> str | None:
     import os
     import subprocess
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     volume.reload()
     server = _start_server()
     try:
@@ -175,7 +179,7 @@ def _start_server():
         _stop(proc)
         tail = "\n".join(output.lines()[-40:])
         raise RuntimeError(f"inference server didn't start: {why}\n--- last log lines ---\n{tail}")
-    print(f"=== inference server ready after {ready_s:.0f}s")
+    log.info("inference server ready after %.0fs", ready_s)
     return proc
 
 
@@ -288,11 +292,12 @@ def _download_file(remote: str, local: Path) -> None:
 
 @app.local_entrypoint()
 def main(run_id: str) -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     if not (LOCAL_DATA / "issues" / run_id / "00_source.pdf").exists():
         raise SystemExit(f"missing {LOCAL_DATA}/issues/{run_id}/00_source.pdf")
     _upload(run_id)
     error = detect.remote(run_id)
     _download(run_id)
-    print(f"01_layout/ downloaded to {LOCAL_DATA}/issues/{run_id}/")
+    log.info("01_layout/ downloaded to %s/issues/%s/", LOCAL_DATA, run_id)
     if error:
         raise SystemExit(f"layout detection failed ({error}), see {LOCAL_DATA}/issues/{run_id}/status.json")

@@ -3,6 +3,7 @@ and summarizes each article (one call), the page step weaves a page's summaries 
 its narration. Each is an LLMStage: a prompt, how to build the request from
 its input, and how to turn the response into its output."""
 
+import logging
 import os
 from dataclasses import dataclass
 
@@ -15,6 +16,8 @@ from narration import ArticleCategory, NarratedArticle, PageSummary, PageSummary
 from source_info import NarrationContext
 from summaries import ArticleSummary
 
+log = logging.getLogger(__name__)
+
 # Retries for synchronous calls: transient errors (rate limits, network) and
 # responses that don't validate. A content-policy refusal exhausts them too
 # (there's no second model to fall back to) and fails the run; the cache
@@ -23,8 +26,8 @@ _RETRY_POLICY = Retrying(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=2, min=2, max=60),
     reraise=True,
-    before_sleep=lambda retry_state: print(
-        f"  transient error (attempt {retry_state.attempt_number}): {retry_state.outcome.exception()!r} -- retrying..."
+    before_sleep=lambda retry_state: log.warning(
+        "transient error (attempt %d): %r -- retrying...", retry_state.attempt_number, retry_state.outcome.exception()
     ),
 )
 
@@ -462,7 +465,7 @@ class PageSynthesisStage(LLMStage[PageSynthesisInput, _PageSentences, PageSummar
         known_idxs = {s.article_idx for s in input.summaries}
         for sentence in response.sentences:
             if sentence.article_idx not in known_idxs:
-                print(f"  WARNING: page summary referenced unknown article_idx {sentence.article_idx}")
+                log.warning("page summary referenced unknown article_idx %d", sentence.article_idx)
         articles = [
             NarratedArticle(article_idx=s.article_idx, headline=s.headline, category=s.category)
             for s in input.summaries

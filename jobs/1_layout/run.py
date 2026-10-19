@@ -8,6 +8,7 @@ is unusable is retried once at a lower DPI, then saved without regions (a
 warning; the articles job falls back to its own geometry there) -- unless
 more than MAX_UNUSABLE_SHARE of the pages fail, which fails the step."""
 
+import logging
 import os
 import threading
 import time
@@ -26,6 +27,8 @@ RETRY_DPI_STEP = 8
 # more than this share of the issue means something systemic (e.g. the
 # server returning garbage) and fails the step instead.
 MAX_UNUSABLE_SHARE = 0.1
+
+log = logging.getLogger(__name__)
 
 
 def run(run_id: str, dpi: int = LAYOUT_RENDER_DPI) -> None:
@@ -50,7 +53,7 @@ def run(run_id: str, dpi: int = LAYOUT_RENDER_DPI) -> None:
         # so retry each failed page once from a slightly different render
         # (each cache records its own DPI).
         if failed:
-            print(f"retrying page(s) {failed} at {dpi - RETRY_DPI_STEP} DPI")
+            log.info("retrying page(s) %s at %d DPI", failed, dpi - RETRY_DPI_STEP)
             failed = _detect_pages(doc, failed, dpi - RETRY_DPI_STEP, writer)
 
         if len(failed) > MAX_UNUSABLE_SHARE * page_count:
@@ -63,7 +66,7 @@ def run(run_id: str, dpi: int = LAYOUT_RENDER_DPI) -> None:
         for i in failed:
             writer.save(i, [], dpi)
             s.warn(f"page {i}: model output unusable after retry, saved without regions")
-            print(f"page {i}: saved without regions (model output unusable after retry)")
+            log.warning("page %d: saved without regions (model output unusable after retry)", i)
         s.finish(str(out_dir))
 
 
@@ -92,9 +95,14 @@ def _detect_pages(doc: pymupdf.Document, pages: list[int], dpi: int, writer: _Pa
                     writer.save(i, regions, dpi)
                     outcome = f"{len(regions)} regions"
                 avg = (time.time() - t_start) / done
-                print(
-                    f"[{done}/{len(pages)}] page {i}: {outcome} "
-                    f"(avg {avg:.1f}s/page, ~{avg * (len(pages) - done) / 60:.1f}min remaining)"
+                log.info(
+                    "[%d/%d] page %d: %s (avg %.1fs/page, ~%.1fmin remaining)",
+                    done,
+                    len(pages),
+                    i,
+                    outcome,
+                    avg,
+                    avg * (len(pages) - done) / 60,
                 )
         except BaseException:
             # Don't start the remaining pages after an error (e.g. server gone).
@@ -122,4 +130,6 @@ class _PageWriter:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     run(run_id_from_args(), dpi=int(os.environ.get("LAYOUT_RENDER_DPI", LAYOUT_RENDER_DPI)))

@@ -180,17 +180,16 @@ def test_an_import_cut_off_is_taken_up_again(config):
     assert docker.jobs == ["fetch", "articles", "narration", "publish"]
 
 
-def test_docker_command(config, monkeypatch):
-    (config.repo_dir / "jobs" / "3_narration").mkdir(parents=True)
-    (config.repo_dir / "jobs" / "3_narration" / ".env").write_text("GEMINI_API_KEY=x\n")
-    seen = []
+def fake_popen(monkeypatch, returncode: int, seen: list | None = None) -> None:
+    """A job that logs to stderr and prints its run_id last on stdout."""
 
     class Proc:
-        stdout = iter(["working\n", f"{RUN_ID}\n", "\n"])
-        returncode = 0
-
         def __init__(self, cmd, **kwargs):
-            seen.append(cmd)
+            if seen is not None:
+                seen.append(cmd)
+            self.stdout = iter([f"{RUN_ID}\n", "\n"] if returncode == 0 else [])
+            self.stderr = iter(["INFO working\n", "no issue that day\n"])
+            self.returncode = returncode
 
         def __enter__(self):
             return self
@@ -199,6 +198,13 @@ def test_docker_command(config, monkeypatch):
             return False
 
     monkeypatch.setattr(run.subprocess, "Popen", Proc)
+
+
+def test_docker_command(config, monkeypatch):
+    (config.repo_dir / "jobs" / "3_narration").mkdir(parents=True)
+    (config.repo_dir / "jobs" / "3_narration" / ".env").write_text("GEMINI_API_KEY=x\n")
+    seen = []
+    fake_popen(monkeypatch, 0, seen)
     narration = next(j for j in run.JOBS if j.name == "narration")
     assert run.docker_run(config)(narration, [RUN_ID]) == (0, RUN_ID)
     assert seen[0] == [
@@ -214,3 +220,8 @@ def test_docker_command(config, monkeypatch):
         "hoerbote-narration",
         RUN_ID,
     ]
+
+
+def test_a_failed_job_returns_its_last_stderr_line(config, monkeypatch):
+    fake_popen(monkeypatch, 1)
+    assert run.docker_run(config)(run.FETCH, ["paper"]) == (1, "no issue that day")

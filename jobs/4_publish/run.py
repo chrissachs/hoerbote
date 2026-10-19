@@ -3,6 +3,7 @@
 run. Audio isn't made here: the audio job renders it on request."""
 
 import json
+import logging
 import shutil
 from pathlib import Path
 
@@ -26,6 +27,8 @@ THUMBNAIL_WIDTH_PX = 360
 # WebP at 70 looks the same as JPEG at 80 even zoomed in, at ~60% of the
 # size (compared on an e-paper and a scanned page, 2026-10-13).
 WEBP_QUALITY = 70
+
+log = logging.getLogger(__name__)
 
 
 def run(run_id: str) -> None:
@@ -69,9 +72,12 @@ def run(run_id: str) -> None:
             shutil.rmtree(out_dir)
         build_dir.rename(out_dir)
         narrated = sum(1 for e in entries if e.segment_count)
-        print(
-            f"Done. {len(entries)} pages published ({narrated} with narration, "
-            f"{sum(e.segment_count for e in entries)} segments) to {out_dir}"
+        log.info(
+            "Done. %d pages published (%d with narration, %d segments) to %s",
+            len(entries),
+            narrated,
+            sum(e.segment_count for e in entries),
+            out_dir,
         )
 
         s.finish(str(out_dir))
@@ -105,4 +111,5 @@ def _render(page: pymupdf.Page, width_px: int, path: Path) -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     run(run_id_from_args())

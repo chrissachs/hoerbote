@@ -30,13 +30,17 @@ Env files (jobs' .env) are read from the repo, mounted at REPO_DIR."""
 import argparse
 import datetime
 import json
+import logging
 import os
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -64,7 +68,8 @@ AUDIO_REQUEST_FILE_NAME = "05_audio.requested"
 IMPORT_REQUESTS_DIR_NAME = "import-requests"
 REQUESTED, RUNNING, FAILED = "requested", "running", "failed"
 
-# (job, args) -> (exit code, stdout); the tests swap in a fake.
+# (job, args) -> (exit code, stdout's last line, or stderr's if it failed);
+# the tests swap in a fake.
 Docker = Callable[[Job, list[str]], tuple[int, str]]
 
 
@@ -105,21 +110,28 @@ def docker_run(config: Config) -> Docker:
         if job.env_file and (config.repo_dir / job.env_file).is_file():
             cmd += ["--env-file", str(config.repo_dir / job.env_file)]
         cmd += [job.image, *args]
-        log(f"$ {' '.join(cmd)}")
-        # Output streams to our log as it comes; only the last line is kept
-        # (the fetch job prints its run_id there).
-        last = ""
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as proc:
-            for line in proc.stdout:
-                print(line, end="", flush=True)
-                last = line.strip() or last
-        return proc.returncode, last
+        log.info("$ %s", " ".join(cmd))
+        # Both streams go to our log as they come. Read apart, not merged:
+        # stdout's last line is the fetch job's run_id, stderr's a job's error.
+        with (
+            subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as proc,
+            ThreadPoolExecutor(1) as pool,
+        ):
+            last_err = pool.submit(_relay, proc.stderr)
+            last_out = _relay(proc.stdout)
+        return proc.returncode, last_out if proc.returncode == 0 else last_err.result() or last_out
 
     return run
 
 
-def log(message: str) -> None:
-    print(f"[runner {datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {message}", flush=True)
+def _relay(lines: Iterable[str]) -> str:
+    """Passes `lines` on to our stderr; returns the last non-empty one."""
+    last = ""
+    for line in lines:
+        sys.stderr.write(line)
+        sys.stderr.flush()
+        last = line.strip() or last
+    return last
 
 
 def _status(config: Config, run_id: str) -> dict:
@@ -135,12 +147,12 @@ def daily(config: Config, docker: Docker, papers: list[str]) -> int:
         started = datetime.datetime.now(datetime.UTC).isoformat()
         code, run_id = docker(FETCH, [paper, "--if-new"])
         if code != 0:
-            log(f"{paper}: fetch failed (or no issue today), see above")
+            log.warning("%s: fetch failed (or no issue today), see above", paper)
             failures += 1
             continue
         fetch_step = next((s for s in _status(config, run_id)["steps"] if s["name"] == FETCH.name), None)
         if fetch_step is None or fetch_step["started_at"] < started:
-            log(f"{run_id}: already fetched before, left alone")
+            log.info("%s: already fetched before, left alone", run_id)
             continue
         failures += restart(config, docker, run_id) != 0
     return 1 if failures else 0
@@ -156,18 +168,18 @@ def restart(config: Config, docker: Docker, run_id: str, from_job: str | None = 
         done = {s["name"] for s in _status(config, run_id)["steps"] if s["status"] == "succeeded"}
         start = next((i for i, name in enumerate(names) if name not in done), len(names))
     for job in JOBS[start:]:
-        log(f"{run_id}: {job.name}")
+        log.info("%s: %s", run_id, job.name)
         if docker(job, [run_id])[0] != 0:
-            log(f"{run_id}: {job.name} failed -- restart with: run.py restart {run_id}")
+            log.warning("%s: %s failed -- restart with: run.py restart %s", run_id, job.name, run_id)
             return 1
-    log(f"{run_id}: done")
+    log.info("%s: done", run_id)
     return 0
 
 
 def audio(docker: Docker, run_id: str) -> int:
-    log(f"{run_id}: audio")
+    log.info("%s: audio", run_id)
     code = docker(AUDIO, [run_id])[0]
-    log(f"{run_id}: audio {'failed' if code else 'done'}")
+    log.log(logging.WARNING if code else logging.INFO, "%s: audio %s", run_id, "failed" if code else "done")
     return code
 
 
@@ -190,10 +202,10 @@ def _failed_job(config: Config, run_id: str) -> str | None:
 def import_issue(config: Config, docker: Docker, paper: str, date: str, on_run_id: Callable[[str], None]) -> str | None:
     """Fetch (unless the issue is there) and every job up to publish.
     Returns the error, None on success."""
-    log(f"{paper} {date}: import")
+    log.info("%s %s: import", paper, date)
     code, run_id = docker(FETCH, [paper, "--date", date, "--if-new"])
     if code != 0:
-        # The fetch job's last line is its error, e.g. no issue that day.
+        # The fetch job's last stderr line: its error, e.g. no issue that day.
         return f"fetch: {run_id}"
     on_run_id(run_id)
     if restart(config, docker, run_id) != 0:
@@ -226,7 +238,7 @@ def import_requests(config: Config, docker: Docker) -> int:
         if error is None:
             running.unlink()
             continue
-        log(f"{body['paper']} {body['date']}: import failed: {error}")
+        log.warning("%s %s: import failed: %s", body["paper"], body["date"], error)
         failures += 1
         _rewrite(running, error=error)
         running.rename(running.with_suffix(f".{FAILED}"))
@@ -246,6 +258,7 @@ def main(argv: list[str]) -> int:
     restart_cmd.add_argument("run_id")
     restart_cmd.add_argument("--from", dest="from_job", choices=[j.name for j in JOBS])
     args = parser.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s runner: %(message)s")
 
     config = Config.from_env()
     if args.command == "import-requests":

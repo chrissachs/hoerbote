@@ -8,6 +8,7 @@ uncached article's article step, then one for every page's page step. A job usua
 minutes but may take up to 24h; this blocks and polls, and a re-run after
 an interruption resumes the same job instead of paying for a new one."""
 
+import logging
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -24,6 +25,8 @@ from stages import article_system_prompt, resolve_tone
 load_dotenv(Path(__file__).parent / ".env")
 
 STEP_NAME = "narration"
+
+log = logging.getLogger(__name__)
 
 
 def run(run_id: str) -> None:
@@ -42,13 +45,13 @@ def run(run_id: str) -> None:
         cache = ArticleCache(rd / CACHE_DIR_NAME, article_system_prompt(ocr, narration_context))
         pipeline = Pipeline(cache, ocr, narration_context, paper_tone, tone_prompt)
         if ocr:
-            print("Text is OCR of a scan: using the OCR cleanup prompt")
+            log.info("Text is OCR of a scan: using the OCR cleanup prompt")
         if narration_context != "none":
-            print(f"Narration context: {narration_context}")
+            log.info("Narration context: %s", narration_context)
         # Also validates the tone now, before any (paid) batch job runs.
-        print(f"Tone: {resolve_tone(paper_tone)}" + (" + the paper's tone prompt" if tone_prompt else ""))
+        log.info("Tone: %s%s", resolve_tone(paper_tone), " + the paper's tone prompt" if tone_prompt else "")
         pages = load_all_pages(run_id)
-        print(f"Processing {len(pages)} pages for run {run_id}...")
+        log.info("Processing %d pages for run %s...", len(pages), run_id)
         _write_narrations(run_id, out_dir, pipeline.process_issue_batched(pages, rd / CACHE_DIR_NAME))
         s.finish(str(out_dir))
 
@@ -68,11 +71,14 @@ def _write_narrations(run_id: str, out_dir: Path, narrations: dict[int, PageSumm
     empty_pages = [page_num for page_num, summary in narrations.items() if summary is None]
     for page_summary in narrations.values():
         if page_summary is not None:
-            print(f"Page {page_summary.page}: wrote {write_page_narration(run_id, page_summary)}")
-    print(f"\nDone. {len(narrations) - len(empty_pages)}/{len(narrations)} pages have narration.")
+            log.info("Page %d: wrote %s", page_summary.page, write_page_narration(run_id, page_summary))
+    log.info("Done. %d/%d pages have narration.", len(narrations) - len(empty_pages), len(narrations))
     if empty_pages:
-        print(f"Pages with no real articles (e.g. full-page ads): {empty_pages}")
+        log.info("Pages with no real articles (e.g. full-page ads): %s", empty_pages)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    # google-genai's client logs every request (the batch polling too) at INFO.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     run(run_id_from_args())

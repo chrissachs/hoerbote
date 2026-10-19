@@ -7,6 +7,7 @@ per-page OCR (alto_io), "pdf" the PDF's embedded text (pdf_io). Never runs the
 layout model: a missing layout cache fails the step."""
 
 import json
+import logging
 from pathlib import Path
 
 import pymupdf
@@ -21,6 +22,8 @@ from pipeline_run import run_dir, run_id_from_args, step
 from source_info import PAGE_TEXT_DIR_NAME, SOURCE_INFO_FILE_NAME, SourceInfo
 
 STEP_NAME = "articles"
+
+log = logging.getLogger(__name__)
 
 
 def _check_layout_cache_complete(source_pdf: Path, layout_dir: Path) -> None:
@@ -68,7 +71,7 @@ def process_pdf(path: Path, out_dir: Path, layout_dir: Path, alto_dir: Path | No
     with open(out_dir / "report.json", "w", encoding="utf-8") as f:
         json.dump([r.model_dump(mode="json") for r in report], f, ensure_ascii=False, indent=2)
 
-    print(f"Done. {len(report)} page(s) processed. See {out_dir}/report.json")
+    log.info("Done. %d page(s) processed. See %s/report.json", len(report), out_dir)
 
     debug_builder.write(out_dir)
 
@@ -87,10 +90,11 @@ def run(run_id: str) -> None:
 
     with step(run_id, STEP_NAME, input_path=str(layout_dir)) as s:
         _check_layout_cache_complete(source_pdf, layout_dir)
-        print(f"Text source: {'ALTO in ' + str(alto_dir) if alto_dir else 'PDF text'}")
+        log.info("Text source: %s", f"ALTO in {alto_dir}" if alto_dir else "PDF text")
         process_pdf(source_pdf, out_dir, layout_dir, alto_dir)
         s.finish(str(out_dir))
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     run(run_id_from_args())

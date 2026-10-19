@@ -17,6 +17,7 @@ paying for a second one."""
 
 import hashlib
 import json
+import logging
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -26,6 +27,8 @@ from google import genai
 from pydantic import ValidationError
 
 from stages import LLM_MODEL_ID, LLMStage
+
+log = logging.getLogger(__name__)
 
 POLL_SECONDS = 30
 _DONE_STATES = {"JOB_STATE_SUCCEEDED", "JOB_STATE_PARTIALLY_SUCCEEDED"}
@@ -53,12 +56,12 @@ def _submit_or_resume(client: genai.Client, stage: LLMStage, requests: list[dict
         if saved["fingerprint"] == fingerprint:
             state = client.batches.get(name=saved["job"]).state.name
             if state not in _FAILED_STATES:
-                print(f"{stage.name}: resuming batch job {saved['job']} ({state})")
+                log.info("%s: resuming batch job %s (%s)", stage.name, saved["job"], state)
                 return saved["job"]
     job = client.batches.create(model=LLM_MODEL_ID, src=requests, config={"display_name": f"hoerbote {stage.name}"})
     job_file.parent.mkdir(parents=True, exist_ok=True)
     job_file.write_text(json.dumps({"job": job.name, "fingerprint": fingerprint}))
-    print(f"{stage.name}: submitted batch job {job.name} ({len(requests)} requests)")
+    log.info("%s: submitted batch job %s (%d requests)", stage.name, job.name, len(requests))
     return job.name
 
 
@@ -79,7 +82,7 @@ def run_batch[TIn, TOut](stage: LLMStage[TIn, Any, TOut], inputs: Sequence[TIn],
         if state in _FAILED_STATES:
             job_file.unlink(missing_ok=True)
             raise RuntimeError(f"{stage.name}: batch job {job_name} ended in {state}: {job.error}")
-        print(f"{stage.name}: batch job {state}, waiting {POLL_SECONDS}s...")
+        log.info("%s: batch job %s, waiting %ds...", stage.name, state, POLL_SECONDS)
         time.sleep(POLL_SECONDS)
 
     outputs: list[TOut] = []
@@ -90,7 +93,7 @@ def run_batch[TIn, TOut](stage: LLMStage[TIn, Any, TOut], inputs: Sequence[TIn],
                 raise RuntimeError(item.error)
             outputs.append(stage.parse(input, item.response.text))
         except (RuntimeError, ValidationError, AttributeError, TypeError) as e:
-            print(f"  {stage.name}: batch item failed ({e!r}) -- retrying synchronously")
+            log.warning("%s: batch item failed (%r) -- retrying synchronously", stage.name, e)
             outputs.append(stage.run(input))
     job_file.unlink(missing_ok=True)
     return outputs

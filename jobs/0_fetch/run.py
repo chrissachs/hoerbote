@@ -8,6 +8,7 @@ isn't open is still fetched, with a warning and rights.open = false."""
 
 import argparse
 import datetime
+import logging
 
 from ddb import DdbProvider
 from papers import load_papers
@@ -18,6 +19,8 @@ from url import UrlProvider
 
 STEP_NAME = "fetch"
 PROVIDERS: dict[str, type[Provider]] = {"ddb": DdbProvider, "url": UrlProvider}
+
+log = logging.getLogger(__name__)
 
 
 def make_run_id(paper: str, edition: str, date: datetime.date) -> str:
@@ -43,7 +46,7 @@ def run(
     date = date or paper.default_date()
     run_id = make_run_id(paper.slug, edition, date)
     if if_new and run_dir(run_id).exists():
-        print(f"{run_id}: already fetched, skipped")
+        log.info("%s: already fetched, skipped", run_id)
         print(run_id)
         return run_id
 
@@ -53,8 +56,10 @@ def run(
     except IssueNotFound as e:
         raise SystemExit(str(e)) from e
     pages = f", {len(ref.text_urls)} pages" if ref.text_urls else ""
-    print(f"{run_id}: {ref.paper_title}{pages}, item {ref.item_id}")
-    print(f"rights: {ref.rights.label} ({ref.rights.statement_url}) -- {'open' if ref.rights.open else 'NOT open'}")
+    log.info("%s: %s%s, item %s", run_id, ref.paper_title, pages, ref.item_id)
+    log.info(
+        "rights: %s (%s) -- %s", ref.rights.label, ref.rights.statement_url, "open" if ref.rights.open else "NOT open"
+    )
     if dry_run:
         return run_id
 
@@ -68,7 +73,7 @@ def run(
         info = provider.download(ref, rd)
         (rd / SOURCE_INFO_FILE_NAME).write_text(info.model_dump_json(indent=2), encoding="utf-8")
         s.finish(str(rd))
-    print(f"Done. Fetched into {rd}")
+    log.info("Done. Fetched into %s", rd)
     print(run_id)
     return run_id
 
@@ -83,4 +88,6 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="look the issue up, download nothing")
     parser.add_argument("--if-new", action="store_true", help="skip an issue whose run dir already exists")
     args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     run(args.paper, args.date, args.edition, args.dry_run, args.if_new)
