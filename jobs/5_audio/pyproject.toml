@@ -1,13 +1,16 @@
 [project]
 name = "hoerbote-audio"
 version = "0.1.0"
-description = "Audio job: renders a published issue's narration segments to MP3 (Gemini TTS, Batch API)."
+description = "Audio job: renders a published issue's narration segments to Ogg Opus (Gemini TTS, or our own model on Modal)."
 requires-python = ">=3.14"
 dependencies = [
     "hoerbote-shared",
     "google-genai>=2.25.0",
-    # WAV from the TTS API -> MP3 (libsndfile >=1.1 has an MP3 encoder).
+    # Audio -> Ogg Opus (libsndfile).
     "soundfile>=0.13.1",
+    "numpy>=2.3",
+    # The model engine's GPU calls (qwen3_tts_gpu.py). Same version as the layout job's.
+    "modal==1.6.1",
     "python-dotenv>=1.2.0",
 ]
 

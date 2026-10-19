@@ -1,0 +1,14 @@
+# The Qwen3-TTS engine's voices (qwen3_tts.py), in pool order. Written by
+# make_voices.py; the clips are its candidates/.
+
+[[voice]]
+name = "female"
+clip = "candidates/female-a.ogg"
+transcript = "Der Gemeinderat hat am Dienstagabend über den neuen Haushalt beraten. Nach einer langen und teils hitzigen Debatte einigte man sich schließlich auf einen Kompromiss, der vor allem Schulen und Kindergärten zugutekommt."
+source = "gemini-3.8-flash-lite-tts, de-de-storyteller-1, style: Sprich klares, natürliches Hochdeutsch in ruhigem Erzähltempo."
+
+[[voice]]
+name = "male"
+clip = "candidates/male-a.ogg"
+transcript = "Der Gemeinderat hat am Dienstagabend über den neuen Haushalt beraten. Nach einer langen und teils hitzigen Debatte einigte man sich schließlich auf einen Kompromiss, der vor allem Schulen und Kindergärten zugutekommt."
+source = "gemini-3.8-flash-lite-tts, de-de-storyteller-8, style: Sprich klares, natürliches Hochdeutsch in ruhigem Erzähltempo."
