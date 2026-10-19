@@ -11,9 +11,10 @@ data/
 backend/Dockerfile
 runner/Dockerfile
 jobs/*/Dockerfile*
-# ...except the GPU image's, which gpu_job.py builds from inside the
-# Dockerfile.modal image.
+# ...except the GPU images', which Modal builds from inside the job's
+# image (the layout job's Dockerfile.modal, the audio job's Dockerfile).
 !jobs/1_layout/Dockerfile.gpu
+!jobs/5_audio/Dockerfile.qwen3-tts
 
 # Provider API keys (see jobs/3_narration/.env.example) -- never
 # baked into an image; supplied at `docker run` time via -e instead.

@@ -5,16 +5,27 @@ for the whole issue at once. Importing an issue doesn't run it, because
 it costs money per issue. It runs when someone asks for an issue's audio
 in the web app (the runner starts it), or by hand.
 
-Text-to-speech is Gemini Flash-Lite TTS with German storyteller voices
-(set in `speech.py`). The voices alternate between female and male, so
-you hear when the story changes. A paper can set its own speaking style
-(`speech_style` in `config/papers.toml`).
+Two speech engines do the rendering (`speech_engine.py`), picked with
+`SPEECH_ENGINE`. Unlike the rest of the repo, they're named after the
+tool: they're alternatives side by side, and another one would be
+another file. Everything else (which segments need a take, saving,
+the manifest) is the same for both (`run.py`).
 
-All segments go into one Gemini Batch API job. That's half the price of
-one call per segment and not subject to the per-minute TTS limit. It
-takes about 3 minutes (up to 24 h in the worst case). A 29-page issue
-costs about 30 ct at Gemini's 2026 introductory price, double that from
-January 2027.
+- **`gemini`** (default, `gemini_tts.py`): Gemini Flash-Lite TTS with German
+  storyteller voices, four of them alternating female and male, so you
+  hear when the story changes. A paper can set its own speaking style
+  (`speech_style` in `config/papers.toml`). All segments go into one
+  Gemini Batch API job: half the price of one call per segment, and not
+  subject to the per-minute TTS limit. It takes about 3 minutes (up to
+  24 h in the worst case). A 29-page issue costs about 30 ct at Gemini's
+  2026 introductory price, double that from January 2027.
+- **`qwen3-tts`** (`qwen3_tts.py` + `qwen3_tts_gpu.py`): Qwen3-TTS (1.7B) on a
+  [Modal](https://modal.com) L4 GPU, speaking in two voices (female,
+  male) cloned from reference clips in `voices/`. The job itself runs
+  where it always does; only the rendering goes to the GPU. A whole
+  issue took about 9 minutes and cost 0.13 EUR (2026-10-16), close to
+  Gemini in quality. Names and abbreviations are sometimes mispronounced.
+  `speech_style` doesn't apply: the voice's tone comes from its clip.
 
 Writes `05_audio/`:
 
@@ -39,21 +50,52 @@ Or with Docker:
 
 ## Configuration
 
-Environment variables (a `.env` in this folder works too):
+Environment variables (a `.env` in this folder works too, see
+`.env.example`):
 
 | Variable | |
 |---|---|
-| `GEMINI_API_KEY` | required, from https://aistudio.google.com/apikey |
+| `SPEECH_ENGINE` | `gemini` (default) or `qwen3-tts` |
+| `GEMINI_API_KEY` | for `gemini`, from https://aistudio.google.com/apikey |
+| `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET` | for `qwen3-tts`. A local run can use `~/.modal.toml` instead (`uvx modal token new`). |
+
+## Qwen3-TTS's voices
+
+`voices/voices.toml` lists the voices in the order they take turns, each
+with its reference clip. The clips are Gemini's storyteller voices
+reading texts of our own (never takes from an issue, which read newspaper
+content). To render them, or to switch to another of the three texts:
+
+    uv run --project jobs/5_audio python jobs/5_audio/make_voices.py [--use a|b|c]
+
+It renders only candidates that aren't in `voices/candidates/` yet, a
+few cents once. A changed clip changes the fingerprint of every take
+read in that voice.
 
 ## Good to know
 
 - A re-run only renders what's missing or changed: a segment that
-  failed, new narration text, or a new voice, style or model. They're
-  all part of each take's file name. Takes no longer needed are deleted.
+  failed, new narration text, a new voice, style, model or engine.
+  They're all part of each take's file name. Takes no longer needed are
+  deleted, so switching engines replaces every take (copy `05_audio/`
+  first to keep the old ones).
 - If some segments fail, the job fails but keeps the others. Run it
   again to render just the missing ones.
-- An interrupted run picks up the same batch again instead of paying for
-  a second one (`05_audio/batch_job.json`).
+- `gemini`: an interrupted run picks up the same batch again instead of
+  paying for a second one (`05_audio/batch_job.json`).
+- `qwen3-tts`: takes are saved as soon as all their sentences are back. Modal
+  can stop a GPU container at any time (preemption) and runs the call
+  again on a new one; each call holds only two batches of sentences, so
+  that costs a minute or two, not the issue. A segment whose call fails
+  for good is reported as failed like any other.
+- `qwen3-tts`: a batch runs until its longest sentence is done, so sentences
+  are batched by length across the whole issue, voices mixed. A sentence
+  that doesn't stop is cut off at twice its expected length and rendered
+  once more; if that happens again, the log says which.
+- `qwen3-tts`: the GPU image (`Dockerfile.qwen3-tts`, built on Modal by
+  `qwen3_tts_gpu.py`) holds the model weights. Changing the Dockerfile or
+  the model rebuilds it, download included (several minutes, once);
+  editing the code or a voice doesn't.
 
 ## Tests
 

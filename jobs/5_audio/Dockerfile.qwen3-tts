@@ -1,0 +1,21 @@
+# qwen3-tts's GPU image, built on Modal by qwen3_tts_gpu.py, which passes
+# MODEL and MODEL_REVISION. Modal caches it as one step: any edit rebuilds
+# all of it, weights included, so settings live in qwen3_tts_gpu.py.
+FROM python:3.14-slim
+
+# sox: qwen-tts' audio I/O.
+RUN apt-get update && apt-get install -y --no-install-recommends sox libsox-fmt-all \
+    && rm -rf /var/lib/apt/lists/*
+
+# CUDA 12.8 build: PyPI's needs a newer driver. torchaudio ends at 2.11
+# and must match torch. librosa below 1.0, which qwen-tts was written for.
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu128 \
+        torch==2.11.0 torchaudio==2.11.0 \
+    && pip install --no-cache-dir qwen-tts==0.1.1 librosa==0.11.0 huggingface_hub
+
+# Weights baked in; offline, so loading doesn't ask the Hub every start.
+ARG MODEL
+ARG MODEL_REVISION
+ENV HF_HOME=/models
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('${MODEL}', revision='${MODEL_REVISION}')"
+ENV HF_HUB_OFFLINE=1
